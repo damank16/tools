@@ -98,7 +98,7 @@ public class VerificationCodeGeneratorTest {
      */
     @Test
     public void testGeneratePackageVerificationCodeFileFileArray() throws NoSuchAlgorithmException, IOException {
-        VerificationCodeGenerator vg = new VerificationCodeGenerator(new JavaSha1ChecksumGenerator());
+        VerificationCodeGenerator vg = new VerificationCodeGenerator(JavaSha1ChecksumGenerator.getInstance());
         File sourceDirectory = new File(SOURCE_PATH);
         File[] skippedFiles = new File[SKIPPED_FILE_NAMES.length];
         for (int i = 0; i < skippedFiles.length; i++) {

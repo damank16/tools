@@ -60,7 +60,7 @@ public class GenerateVerificationCode {
 			skippedFiles = collectSkippedFiles(skippedRegex, sourceDirectory);
 		}
 		try {
-			VerificationCodeGenerator vcg = new VerificationCodeGenerator(new JavaSha1ChecksumGenerator());
+			VerificationCodeGenerator vcg = new VerificationCodeGenerator(JavaSha1ChecksumGenerator.getInstance());
 			SpdxPackageVerificationCode verificationCode = vcg.generatePackageVerificationCode(sourceDirectory, skippedFiles);
 			printVerificationCode(verificationCode);
 			System.exit(0);

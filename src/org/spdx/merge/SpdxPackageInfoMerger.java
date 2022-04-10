@@ -115,7 +115,7 @@ public class SpdxPackageInfoMerger {
 
 	                	 //process to generate new verification code
 	                	 String[] skippedFiles = collectSkippedFiles(masterPackage,tempPackage);
-	                	 VerificationCodeGenerator verCodeGenerator = new VerificationCodeGenerator(new JavaSha1ChecksumGenerator());
+	                	 VerificationCodeGenerator verCodeGenerator = new VerificationCodeGenerator(JavaSha1ChecksumGenerator.getInstance());
 	                	 SpdxPackageVerificationCode newCode = verCodeGenerator.generatePackageVerificationCode(fileMergeResult, skippedFiles);
 	                	 masterPackage.setPackageVerificationCode(newCode);
 

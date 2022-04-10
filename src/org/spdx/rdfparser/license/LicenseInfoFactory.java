@@ -39,6 +39,16 @@ public class LicenseInfoFactory {
 	public static final String NOASSERTION_LICENSE_NAME = "NOASSERTION";
 	public static final String NONE_LICENSE_NAME = "NONE";
 
+	static LicenseStrategy licenseStrategy;
+	public static void  setLicenseStrategy(LicenseStrategy licenseStrategy) {
+		licenseStrategy = licenseStrategy;
+	}
+
+	public static void executeStrategy(LicenseStrategy strategy) throws InvalidSPDXAnalysisException {
+		strategy.getLicense();
+	}
+
+
 
 	/**
 	 * Create the appropriate SPDXLicenseInfo from the model and node provided.
@@ -56,13 +66,16 @@ public class LicenseInfoFactory {
 		AnyLicenseInfo retval = null;
 		// check to see if it is a "simple" type of license (NONESEEN, NONE, NOTANALYZED, or SPDX_LISTED_LICENSE)
 		if (node.isURI()) {
-			retval = getLicenseInfoByUri(modelContainer, node);
+			setLicenseStrategy(new LicenseInfoyByURI(modelContainer, node));
+			retval = licenseStrategy.getLicense();
 		}
 		if (retval == null) {	// try by type
-			retval = getLicenseInfoByType(modelContainer, node);
+			setLicenseStrategy(new LicenseInfoByType(modelContainer, node));
+			retval = licenseStrategy.getLicense();
 		}
-		if (retval == null) {	// try by ID
-			retval = getLicenseInfoById(modelContainer, node);
+		if (retval == null) {
+			setLicenseStrategy(new LicenseInfoById(modelContainer, node));// try by ID
+			retval = licenseStrategy.getLicense();
 		}
 		if (retval == null) {	// OK, we give up
 			logger.error("Could not determine the type for a license");
@@ -78,27 +91,27 @@ public class LicenseInfoFactory {
 	 * @return License Info for the license or NULL if no external listed license info could be found
 	 * @throws InvalidSPDXAnalysisException
 	 */
-	private static AnyLicenseInfo getLicenseInfoByUri(IModelContainer modelContainer, Node node) throws InvalidSPDXAnalysisException {
-		if (!node.isURI()) {
-			return null;
-		}
-		if (node.getURI().equals(SpdxRdfConstants.SPDX_NAMESPACE+SpdxRdfConstants.TERM_LICENSE_NONE)) {
-			return new SpdxNoneLicense(modelContainer, node);
-		} else if (node.getURI().equals(SpdxRdfConstants.SPDX_NAMESPACE+SpdxRdfConstants.TERM_LICENSE_NOASSERTION)) {
-			return new SpdxNoAssertionLicense(modelContainer, node);
-		} else if (node.getURI().startsWith(ListedLicenses.LISTED_LICENSE_ID_URL)) {
-			// try to fetch the listed license from the model
-			try {
-				return ListedLicenses.getListedLicenses().getLicenseFromStdLicModel(modelContainer, node);
-			} catch (Exception ex) {
-				logger.warn("Unable to get license from SPDX listed license model for "+node.getURI());
-				return null;
-			}
-		} else {
-			return null;
-		}
-	}
-
+//	private static AnyLicenseInfo getLicenseInfoByUri(IModelContainer modelContainer, Node node) throws InvalidSPDXAnalysisException {
+//		if (!node.isURI()) {
+//			return null;
+//		}
+//		if (node.getURI().equals(SpdxRdfConstants.SPDX_NAMESPACE+SpdxRdfConstants.TERM_LICENSE_NONE)) {
+//			return new SpdxNoneLicense(modelContainer, node);
+//		} else if (node.getURI().equals(SpdxRdfConstants.SPDX_NAMESPACE+SpdxRdfConstants.TERM_LICENSE_NOASSERTION)) {
+//			return new SpdxNoAssertionLicense(modelContainer, node);
+//		} else if (node.getURI().startsWith(ListedLicenses.LISTED_LICENSE_ID_URL)) {
+//			// try to fetch the listed license from the model
+//			try {
+//				return ListedLicenses.getListedLicenses().getLicenseFromStdLicModel(modelContainer, node);
+//			} catch (Exception ex) {
+//				logger.warn("Unable to get license from SPDX listed license model for "+node.getURI());
+//				return null;
+//			}
+//		} else {
+//			return null;
+//		}
+//	}
+//
 	/**
 	 * @param licenseId SPDX Listed License ID
 	 * @return SPDX listed license or null if the ID is not in the SPDX license list
@@ -107,83 +120,83 @@ public class LicenseInfoFactory {
 	public static SpdxListedLicense getListedLicenseById(String licenseId)throws InvalidSPDXAnalysisException {
 		return ListedLicenses.getListedLicenses().getListedLicenseById(licenseId);
 	}
-
-	/**
-	 * @param document
-	 * @param node
-	 * @return
-	 * @throws InvalidSPDXAnalysisException
-	 */
-	private static AnyLicenseInfo getLicenseInfoById(IModelContainer modelContainer, Node node) throws InvalidSPDXAnalysisException {
-		Node licenseIdPredicate = modelContainer.getModel().getProperty(SpdxRdfConstants.SPDX_NAMESPACE, SpdxRdfConstants.PROP_LICENSE_ID).asNode();
-		Triple m = Triple.createMatch(node, licenseIdPredicate, null);
-		ExtendedIterator<Triple> tripleIter = modelContainer.getModel().getGraph().find(m);
-		if (tripleIter.hasNext()) {
-			Triple triple = tripleIter.next();
-			String id = triple.getObject().toString(false);
-			if (tripleIter.hasNext()) {
-				throw(new InvalidSPDXAnalysisException("More than one ID associated with license "+id));
-			}
-			if (isSpdxListedLicenseID(id)) {
-				return new SpdxListedLicense(modelContainer, node);
-			} else if (id.startsWith(SpdxRdfConstants.NON_STD_LICENSE_ID_PRENUM)) {
-				return new ExtractedLicenseInfo(modelContainer, node);
-			} else {
-				// could not determine the type from the ID
-				// could be a conjunctive or disjunctive license ID
-				return null;
-			}
-		} else {
-			throw(new InvalidSPDXAnalysisException("No ID associated with a license"));
-		}
-	}
-
-	/**
-	 * @param modelContainer
-	 * @param node
-	 * @return
-	 * @throws InvalidSPDXAnalysisException
-	 */
-	private static AnyLicenseInfo getLicenseInfoByType(IModelContainer modelContainer, Node node) throws InvalidSPDXAnalysisException {
-		// find the subclass
-		Node rdfTypePredicate = modelContainer.getModel().getProperty(SpdxRdfConstants.RDF_NAMESPACE,
-				SpdxRdfConstants.RDF_PROP_TYPE).asNode();
-		Triple m = Triple.createMatch(node, rdfTypePredicate, null);
-		ExtendedIterator<Triple> tripleIter = modelContainer.getModel().getGraph().find(m);	// find the type(s)
-		if (tripleIter.hasNext()) {
-			Triple triple = tripleIter.next();
-			if (tripleIter.hasNext()) {
-				throw(new InvalidSPDXAnalysisException("More than one type associated with a licenseInfo"));
-			}
-			Node typeNode = triple.getObject();
-			if (!typeNode.isURI()) {
-				throw(new InvalidSPDXAnalysisException("Invalid type for licenseInfo - not a URI"));
-			}
-			// need to parse the URI
-			String typeUri = typeNode.getURI();
-			if (!typeUri.startsWith(SpdxRdfConstants.SPDX_NAMESPACE)) {
-				throw(new InvalidSPDXAnalysisException("Invalid type for licenseInfo - not an SPDX type"));
-			}
-			String type = typeUri.substring(SpdxRdfConstants.SPDX_NAMESPACE.length());
-			if (type.equals(SpdxRdfConstants.CLASS_SPDX_CONJUNCTIVE_LICENSE_SET)) {
-				return new ConjunctiveLicenseSet(modelContainer, node);
-			} else if (type.equals(SpdxRdfConstants.CLASS_SPDX_DISJUNCTIVE_LICENSE_SET)) {
-				return new DisjunctiveLicenseSet(modelContainer, node);
-			} else if (type.equals(SpdxRdfConstants.CLASS_SPDX_EXTRACTED_LICENSING_INFO)) {
-				return new ExtractedLicenseInfo(modelContainer, node);
-			} else if (type.equals(SpdxRdfConstants.CLASS_SPDX_LICENSE)) {
-				return new SpdxListedLicense(modelContainer, node);
-			} else if (type.equals(SpdxRdfConstants.CLASS_OR_LATER_OPERATOR)) {
-				return new OrLaterOperator(modelContainer, node);
-			} else if (type.equals(SpdxRdfConstants.CLASS_WITH_EXCEPTION_OPERATOR)) {
-				return new WithExceptionOperator(modelContainer, node);
-			} else {
-				throw(new InvalidSPDXAnalysisException("Invalid type for licenseInfo '"+type+"'"));
-			}
-		} else {
-			return null;
-		}
-	}
+//
+//	/**
+//	 * @param document
+//	 * @param node
+//	 * @return
+//	 * @throws InvalidSPDXAnalysisException
+//	 */
+//	private static AnyLicenseInfo getLicenseInfoById(IModelContainer modelContainer, Node node) throws InvalidSPDXAnalysisException {
+//		Node licenseIdPredicate = modelContainer.getModel().getProperty(SpdxRdfConstants.SPDX_NAMESPACE, SpdxRdfConstants.PROP_LICENSE_ID).asNode();
+//		Triple m = Triple.createMatch(node, licenseIdPredicate, null);
+//		ExtendedIterator<Triple> tripleIter = modelContainer.getModel().getGraph().find(m);
+//		if (tripleIter.hasNext()) {
+//			Triple triple = tripleIter.next();
+//			String id = triple.getObject().toString(false);
+//			if (tripleIter.hasNext()) {
+//				throw(new InvalidSPDXAnalysisException("More than one ID associated with license "+id));
+//			}
+//			if (isSpdxListedLicenseID(id)) {
+//				return new SpdxListedLicense(modelContainer, node);
+//			} else if (id.startsWith(SpdxRdfConstants.NON_STD_LICENSE_ID_PRENUM)) {
+//				return new ExtractedLicenseInfo(modelContainer, node);
+//			} else {
+//				// could not determine the type from the ID
+//				// could be a conjunctive or disjunctive license ID
+//				return null;
+//			}
+//		} else {
+//			throw(new InvalidSPDXAnalysisException("No ID associated with a license"));
+//		}
+//	}
+//
+//	/**
+//	 * @param modelContainer
+//	 * @param node
+//	 * @return
+//	 * @throws InvalidSPDXAnalysisException
+//	 */
+//	private static AnyLicenseInfo getLicenseInfoByType(IModelContainer modelContainer, Node node) throws InvalidSPDXAnalysisException {
+//		// find the subclass
+//		Node rdfTypePredicate = modelContainer.getModel().getProperty(SpdxRdfConstants.RDF_NAMESPACE,
+//				SpdxRdfConstants.RDF_PROP_TYPE).asNode();
+//		Triple m = Triple.createMatch(node, rdfTypePredicate, null);
+//		ExtendedIterator<Triple> tripleIter = modelContainer.getModel().getGraph().find(m);	// find the type(s)
+//		if (tripleIter.hasNext()) {
+//			Triple triple = tripleIter.next();
+//			if (tripleIter.hasNext()) {
+//				throw(new InvalidSPDXAnalysisException("More than one type associated with a licenseInfo"));
+//			}
+//			Node typeNode = triple.getObject();
+//			if (!typeNode.isURI()) {
+//				throw(new InvalidSPDXAnalysisException("Invalid type for licenseInfo - not a URI"));
+//			}
+//			// need to parse the URI
+//			String typeUri = typeNode.getURI();
+//			if (!typeUri.startsWith(SpdxRdfConstants.SPDX_NAMESPACE)) {
+//				throw(new InvalidSPDXAnalysisException("Invalid type for licenseInfo - not an SPDX type"));
+//			}
+//			String type = typeUri.substring(SpdxRdfConstants.SPDX_NAMESPACE.length());
+//			if (type.equals(SpdxRdfConstants.CLASS_SPDX_CONJUNCTIVE_LICENSE_SET)) {
+//				return new ConjunctiveLicenseSet(modelContainer, node);
+//			} else if (type.equals(SpdxRdfConstants.CLASS_SPDX_DISJUNCTIVE_LICENSE_SET)) {
+//				return new DisjunctiveLicenseSet(modelContainer, node);
+//			} else if (type.equals(SpdxRdfConstants.CLASS_SPDX_EXTRACTED_LICENSING_INFO)) {
+//				return new ExtractedLicenseInfo(modelContainer, node);
+//			} else if (type.equals(SpdxRdfConstants.CLASS_SPDX_LICENSE)) {
+//				return new SpdxListedLicense(modelContainer, node);
+//			} else if (type.equals(SpdxRdfConstants.CLASS_OR_LATER_OPERATOR)) {
+//				return new OrLaterOperator(modelContainer, node);
+//			} else if (type.equals(SpdxRdfConstants.CLASS_WITH_EXCEPTION_OPERATOR)) {
+//				return new WithExceptionOperator(modelContainer, node);
+//			} else {
+//				throw(new InvalidSPDXAnalysisException("Invalid type for licenseInfo '"+type+"'"));
+//			}
+//		} else {
+//			return null;
+//		}
+//	}
 
 	/**
 	 * Parses a license string and converts it into a SPDXLicenseInfo object

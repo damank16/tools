@@ -16,6 +16,8 @@
 */
 package org.spdx.rdfparser;
 
+import org.spdx.rdfparser.referencetype.ListedReferenceTypes;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -32,7 +34,8 @@ public class JavaSha1ChecksumGenerator implements IFileChecksumGenerator {
 	static final String PACKAGE_VERIFICATION_CHARSET = "UTF-8";
 	private MessageDigest digest = null;
 
-	public JavaSha1ChecksumGenerator() throws NoSuchAlgorithmException {
+	private static JavaSha1ChecksumGenerator javaSha1ChecksumGenerator;
+	private JavaSha1ChecksumGenerator() throws NoSuchAlgorithmException {
 		this.digest = MessageDigest.getInstance(SHA1_ALGORITHM);
 	}
 
@@ -63,6 +66,15 @@ public class JavaSha1ChecksumGenerator implements IFileChecksumGenerator {
 		} finally {
 			in.close();
 		}
+	}
+
+	public  static JavaSha1ChecksumGenerator getInstance() throws NoSuchAlgorithmException {
+		if (javaSha1ChecksumGenerator == null) {
+				if (javaSha1ChecksumGenerator == null) {
+					javaSha1ChecksumGenerator = new JavaSha1ChecksumGenerator();
+				}
+			}
+		return javaSha1ChecksumGenerator;
 	}
 
 }
