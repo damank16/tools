@@ -13,7 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  *
-*/
+ */
 package org.spdx.rdfparser.license;
 
 import org.apache.jena.graph.Node;
@@ -66,17 +66,18 @@ public class LicenseInfoFactory {
 		AnyLicenseInfo retval = null;
 		// check to see if it is a "simple" type of license (NONESEEN, NONE, NOTANALYZED, or SPDX_LISTED_LICENSE)
 		if (node.isURI()) {
-			setLicenseStrategy(new LicenseInfoyByURI(modelContainer, node));
+			licenseStrategy = new LicenseInfoyByURI(modelContainer, node);
 			retval = licenseStrategy.getLicense();
 		}
 		if (retval == null) {	// try by type
-			setLicenseStrategy(new LicenseInfoByType(modelContainer, node));
+			licenseStrategy = new LicenseInfoByType(modelContainer, node);
 			retval = licenseStrategy.getLicense();
 		}
 		if (retval == null) {
-			setLicenseStrategy(new LicenseInfoById(modelContainer, node));// try by ID
+			licenseStrategy = new LicenseInfoById(modelContainer, node);// try by ID
 			retval = licenseStrategy.getLicense();
 		}
+
 		if (retval == null) {	// OK, we give up
 			logger.error("Could not determine the type for a license");
 			throw(new InvalidSPDXAnalysisException("Could not determine the type for a license"));
